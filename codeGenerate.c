@@ -578,7 +578,7 @@ void genVariableRHS(AST_NODE* idNode){
     if (id_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR) {
         AST_NODE* dim = idNode->child;
         int* size_of_dimension = id_entry->attribute->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension;
-        int next_index = 1;
+        int next_index = 1, used_index = 0;
         int max_index = id_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension;
         fprintf(output, "addi %s, x0, 0\n", int_avail_regs[offset_reg].name);
         while (dim) {
@@ -589,10 +589,12 @@ void genVariableRHS(AST_NODE* idNode){
                 fprintf(output, "mul %s, %s, %s\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[dim->place].name);
             }
             freeIntRegister(dim->place);
+            used_index++;
             dim = dim->rightSibling;
         }
         fprintf(output, "slli %s, %s, 2\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name);
-        if (next_index < max_index) { //return a pointer address
+        if (used_index < max_index) { //return a pointer address
+            puts("in");
             idNode->place = getIntRegister();
             if (id_entry->nestingLevel == 0) {
                 fprintf(output, "la %s, _GLOBAL_%s\n", int_avail_regs[idNode->place].name, id_entry->name);
@@ -601,6 +603,7 @@ void genVariableRHS(AST_NODE* idNode){
                 fprintf(output, ".data\n_CONSTANT_%d: .word %d\n.text\n", const_count, id_entry->offset);
                 fprintf(output, "lw %s, _CONSTANT_%d\n", int_avail_regs[idNode->place].name, const_count++);
             }
+            fprintf(output, "add %s, %s, fp\n", int_avail_regs[idNode->place].name, int_avail_regs[idNode->place].name);
             fprintf(output, "add %s, %s, %s\n", int_avail_regs[idNode->place].name, int_avail_regs[idNode->place].name, int_avail_regs[offset_reg].name);
             freeIntRegister(offset_reg);
             return;

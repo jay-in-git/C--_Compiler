@@ -594,7 +594,6 @@ void genVariableRHS(AST_NODE* idNode){
         }
         fprintf(output, "slli %s, %s, 2\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name);
         if (used_index < max_index) { //return a pointer address
-            puts("in");
             idNode->place = getIntRegister();
             if (id_entry->nestingLevel == 0) {
                 fprintf(output, "la %s, _GLOBAL_%s\n", int_avail_regs[idNode->place].name, id_entry->name);
@@ -795,13 +794,13 @@ void genValuateBinaryExprValue(AST_NODE* exprNode){
         if(left->dataType == INT_TYPE){
             int ori_reg = left->place;
             left->place = getFloatRegister();
-            fprintf("fcvt.s.w %s, %s\n", float_avail_regs[left->place].name, int_avail_regs[ori_reg].name);
+            fprintf(output, "fcvt.s.w %s, %s\n", float_avail_regs[left->place].name, int_avail_regs[ori_reg].name);
             freeIntRegister(ori_reg);
         }
         if(right->dataType == INT_TYPE){
             int ori_reg = right->place;
             right->place = getFloatRegister();
-            fprintf("fcvt.s.w %s, %s\n", float_avail_regs[right->place].name, int_avail_regs[ori_reg].name);
+            fprintf(output, "fcvt.s.w %s, %s\n", float_avail_regs[right->place].name, int_avail_regs[ori_reg].name);
             freeIntRegister(ori_reg);
         }
         switch (exprNode->semantic_value.exprSemanticValue.op.binaryOp)

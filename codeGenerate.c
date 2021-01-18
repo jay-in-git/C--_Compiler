@@ -789,12 +789,16 @@ void genValuateBinaryExprValue(AST_NODE* exprNode){
         int tmp_reg;
         exprNode->place = getFloatRegister();
         if(left->dataType == INT_TYPE){
-            freeIntRegister(left->place);
+            int ori_reg = left->place;
             left->place = getFloatRegister();
+            fprintf("fcvt.s.w %s, %s\n", float_avail_regs[left->place].name, int_avail_regs[ori_reg].name);
+            freeIntRegister(ori_reg);
         }
         if(right->dataType == INT_TYPE){
-            freeIntRegister(right->place);
-            left->place = getFloatRegister();
+            int ori_reg = right->place;
+            right->place = getFloatRegister();
+            fprintf("fcvt.s.w %s, %s\n", float_avail_regs[right->place].name, int_avail_regs[ori_reg].name);
+            freeIntRegister(ori_reg);
         }
         switch (exprNode->semantic_value.exprSemanticValue.op.binaryOp)
         {

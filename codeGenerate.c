@@ -170,12 +170,33 @@ void genParameterPassing(FunctionSignature* function_sig, AST_NODE* param_node) 
             fprintf(output, "sd %s, %d(sp)\n", int_avail_regs[param_node->place].name, offset);
         }
         else {
-            if (param_node->dataType == INT_TYPE)
-                fprintf(output, "sw %s, %d(sp)\n", int_avail_regs[param_node->place].name, offset);
-            else
-                fprintf(output, "fsw %s, %d(sp)\n", float_avail_regs[param_node->place].name, offset);
+            if (param_node->dataType == INT_TYPE) {
+                if (formal_param->type->kind == SCALAR_TYPE_DESCRIPTOR && formal_param->type->properties.dataType == FLOAT_TYPE) {
+                    int convert_reg = getFloatRegister();
+                    fprintf(output, "fcvt.s.w %s, %s\n", float_avail_regs[convert_reg].name, int_avail_regs[param_node->place].name);
+                    fprintf(output, "fsw %s, %d(sp)\n", float_avail_regs[convert_reg].name, offset);
+                    freeFloatRegister(convert_reg);
+                }
+                else {
+                    fprintf(output, "sw %s, %d(sp)\n", int_avail_regs[param_node->place].name, offset);
+                }
+                freeIntRegister(param_node->place);
+            }
+            else {
+                if (formal_param->type->kind == SCALAR_TYPE_DESCRIPTOR && formal_param->type->properties.dataType == INT_TYPE) {
+                    int convert_reg = getIntRegister();
+                    fprintf(output, "fcvt.w.s %s, %s\n", int_avail_regs[convert_reg].name, float_avail_regs[param_node->place].name);
+                    fprintf(output, "sw %s, %d(sp)\n", int_avail_regs[convert_reg].name, offset);
+                    freeFloatRegister(convert_reg);
+                }
+                else {
+                    fprintf(output, "fsw %s, %d(sp)\n", float_avail_regs[param_node->place].name, offset);
+                }
+                freeFloatRegister(param_node->place);
+            }
         }
         offset += 8;
+        formal_param = formal_param->next;
         param_node = param_node->rightSibling;
     }
 }

@@ -348,10 +348,19 @@ void genAssignmentStmt(AST_NODE* assignment_node) {
     int offset_reg = getIntRegister();
     if (left_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR) {
         AST_NODE* dim = left->child;
-        fprintf(output, "addi %s, x0, 4\n", int_avail_regs[offset_reg].name);
+        int* size_of_dimension = left_entry->attribute->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension;
+        int next_index = 1;
+        int max_index = left_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension;
+        fprintf(output, "addi %s, x0, 0\n", int_avail_regs[offset_reg].name);
         while (dim) {
             genExprRelated(dim);
-            fprintf(output, "mul %s, %s, %s\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[dim->place].name);
+            fprintf(output, "add %s, %s, %s\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[dim->place].name);
+            if (next_index < max_index) {
+                fprintf(output, "li %s, %d\n", int_avail_regs[dim->place].name, size_of_dimension[next_index++]);
+                fprintf(output, "mul %s, %s, %s\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[dim->place].name);
+            }
+            else
+                fprintf(output, "slli %s, %s, 2\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name);
             freeIntRegister(dim->place);
             dim = dim->rightSibling;
         }
@@ -502,7 +511,6 @@ void genFunctionCall(AST_NODE* function_node) {
     for (AST_NODE* actual_param = name_node->rightSibling->child; actual_param != NULL; actual_param = actual_param->rightSibling) {
         genExprRelated(actual_param);
         int reg_num = actual_param->place;
-        // I assume that cross type parameters (int, float, float) are arrange as a0, fa1, fa2
         if (actual_param->dataType == INT_TYPE) {
             fprintf(output, "mv a%d, %s\n", int_i++, int_avail_regs[reg_num].name);
             freeIntRegister(actual_param->place);
@@ -553,12 +561,33 @@ void genVariableRHS(AST_NODE* idNode){
     int offset_reg = getIntRegister();
     if (id_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR) {
         AST_NODE* dim = idNode->child;
-        fprintf(output, "addi %s, x0, 4\n", int_avail_regs[offset_reg].name);
+        int* size_of_dimension = id_entry->attribute->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension;
+        int next_index = 1;
+        int max_index = id_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension;
+        fprintf(output, "addi %s, x0, 0\n", int_avail_regs[offset_reg].name);
         while (dim) {
             genExprRelated(dim);
-            fprintf(output, "mul %s, %s, %s\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[dim->place].name);
+            fprintf(output, "add %s, %s, %s\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[dim->place].name);
+            if (next_index < max_index) { // offset = (i1*n2 + i2)*n3 ...
+                fprintf(output, "li %s, %d\n", int_avail_regs[dim->place].name, size_of_dimension[next_index++]);
+                fprintf(output, "mul %s, %s, %s\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[dim->place].name);
+            }
             freeIntRegister(dim->place);
             dim = dim->rightSibling;
+        }
+        fprintf(output, "slli %s, %s, 2\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name);
+        if (next_index < max_index) { //return a pointer address
+            idNode->place = getIntRegister();
+            if (id_entry->nestingLevel == 0) {
+                fprintf(output, "la %s, _GLOBAL_%s\n", int_avail_regs[idNode->place].name, id_entry->name);
+            }
+            else {
+                fprintf(output, ".data\n_CONSTANT_%d: .word %d\n.text\n", const_count, id_entry->offset);
+                fprintf(output, "lw %s, _CONSTANT_%d\n", int_avail_regs[idNode->place].name, const_count++);
+            }
+            fprintf(output, "add %s, %s, %s\n", int_avail_regs[idNode->place].name, int_avail_regs[idNode->place].name, int_avail_regs[offset_reg].name);
+            freeIntRegister(offset_reg);
+            return;
         }
     }
     if(id_entry->nestingLevel == 0){

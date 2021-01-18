@@ -5,8 +5,8 @@
 #include "symbolTable.h"
 #include "header.h"
 #include "codeGenerate.h"
-#define PROLOGUE "sd ra,0(sp)\nsd fp,-8(sp)\nadd fp,sp,-8\nadd sp,sp,-16\nla ra,_frameSize_%s\nlw ra,0(ra)\nsub sp,sp,ra\nsd t0,8(sp)\nsd t1,16(sp)\nsd t2,24(sp)\nsd t3,32(sp)\nsd t4,40(sp)\nsd t5,48(sp)\nsd t6,56(sp)\nsd s2,64(sp)\nsd s3,72(sp)\nsd s4,80(sp)\nsd s5,88(sp)\nsd s6,96(sp)\nsd s7,104(sp)\nsd s8,112(sp)\nsd s9,120(sp)\nsd s10,128(sp)\nsd s11,136(sp)\nsd fp,144(sp)\nfsw ft0,152(sp)\nfsw ft1,156(sp)\nfsw ft2,160(sp)\nfsw ft3,164(sp)\nfsw ft4,168(sp)\nfsw ft5,172(sp)\nfsw ft6,176(sp)\nfsw ft7,180(sp)\nfsw fs1,184(sp)\nfsw fs2,188(sp)\nfsw fs3,192(sp)\nfsw fs4,196(sp)\nfsw fs5,200(sp)\nfsw fs6,204(sp)\nfsw fs7,208(sp)\n"
-#define EPILOGUE "_end_%s:\nld t0,8(sp)\nld t1,16(sp)\nld t2,24(sp)\nld t3,32(sp)\nld t4,40(sp)\nld t5,48(sp)\nld t6,56(sp)\nld s2,64(sp)\nld s3,72(sp)\nld s4,80(sp)\nld s5,88(sp)\nld s6,96(sp)\nld s7,104(sp)\nld s8,112(sp)\nld s9,120(sp)\nld s10,128(sp)\nld s11,136(sp)\nld fp,144(sp)\nflw ft0,152(sp)\nflw ft1,156(sp)\nflw ft2,160(sp)\nflw ft3,164(sp)\nflw ft4,168(sp)\nflw ft5,172(sp)\nflw ft6,176(sp)\nflw ft7,180(sp)\nflw fs1,184(sp)\nflw fs2,188(sp)\nflw fs3,192(sp)\nflw fs4,196(sp)\nflw fs5,200(sp)\nflw fs6,204(sp)\nflw fs7,208(sp)\nld ra,8(fp)\nmv sp,fp\nadd sp,sp,8\nld fp,0(fp)\njr ra\n"
+#define PROLOGUE "sd ra,0(sp)\nsd fp,-8(sp)\naddi fp,sp,-8\naddi sp,sp,-16\nla ra,_frameSize_%s\nlw ra,0(ra)\nsub sp,sp,ra\nsd t0,8(sp)\nsd t1,16(sp)\nsd t2,24(sp)\nsd t3,32(sp)\nsd t4,40(sp)\nsd t5,48(sp)\nsd t6,56(sp)\nsd s2,64(sp)\nsd s3,72(sp)\nsd s4,80(sp)\nsd s5,88(sp)\nsd s6,96(sp)\nsd s7,104(sp)\nsd s8,112(sp)\nsd s9,120(sp)\nsd s10,128(sp)\nsd s11,136(sp)\nsd fp,144(sp)\nfsw ft0,152(sp)\nfsw ft1,156(sp)\nfsw ft2,160(sp)\nfsw ft3,164(sp)\nfsw ft4,168(sp)\nfsw ft5,172(sp)\nfsw ft6,176(sp)\nfsw ft7,180(sp)\nfsw fs1,184(sp)\nfsw fs2,188(sp)\nfsw fs3,192(sp)\nfsw fs4,196(sp)\nfsw fs5,200(sp)\nfsw fs6,204(sp)\nfsw fs7,208(sp)\n"
+#define EPILOGUE "_end_%s:\nld t0,8(sp)\nld t1,16(sp)\nld t2,24(sp)\nld t3,32(sp)\nld t4,40(sp)\nld t5,48(sp)\nld t6,56(sp)\nld s2,64(sp)\nld s3,72(sp)\nld s4,80(sp)\nld s5,88(sp)\nld s6,96(sp)\nld s7,104(sp)\nld s8,112(sp)\nld s9,120(sp)\nld s10,128(sp)\nld s11,136(sp)\nld fp,144(sp)\nflw ft0,152(sp)\nflw ft1,156(sp)\nflw ft2,160(sp)\nflw ft3,164(sp)\nflw ft4,168(sp)\nflw ft5,172(sp)\nflw ft6,176(sp)\nflw ft7,180(sp)\nflw fs1,184(sp)\nflw fs2,188(sp)\nflw fs3,192(sp)\nflw fs4,196(sp)\nflw fs5,200(sp)\nflw fs6,204(sp)\nflw fs7,208(sp)\nld ra,8(fp)\nmv sp,fp\naddi sp,sp,8\nld fp,0(fp)\njr ra\n"
 
 
 FILE* output;
@@ -142,18 +142,42 @@ void genGlobalDecl(AST_NODE* decl_node) {
 void genFunctionDecl(AST_NODE* decl_node) {
     AST_NODE* type_node = decl_node->child;
     AST_NODE* name_node = type_node->rightSibling;
+    AST_NODE* param = name_node->rightSibling->child;
     SymbolTableEntry* id_entry = name_node->semantic_value.identifierSemanticValue.symbolTableEntry;
     char* id_name = id_entry->name;
     int AR_offset = 0;
     genHead(id_name);
     genPrologue(id_name);
-    genParameter(name_node->rightSibling);
+    // parameters offset
+    int param_offset = 16;
+    while (param) {
+        SymbolTableEntry* param_entry = (param->child->rightSibling)->semantic_value.identifierSemanticValue.symbolTableEntry;
+        param_entry->offset = param_offset;
+        param_offset += 8;
+        param = param->rightSibling;
+    }
     genBlock(name_node->rightSibling->rightSibling, &AR_offset);
     genEpilogue(id_name, AR_offset);
 }
 
-void genParameter(AST_NODE* para_decl) {
-    
+void genParameterPassing(FunctionSignature* function_sig, AST_NODE* param_node) {
+    int offset = 8;
+    Parameter* formal_param = function_sig->parameterList;
+    fprintf(output, "addi sp, sp, -%d\n", (function_sig->parametersCount) * 8);
+    while (param_node) {
+        genExprRelated(param_node);
+        if (param_node->dataType == INT_PTR_TYPE || param_node->dataType == FLOAT_PTR_TYPE) {
+            fprintf(output, "sd %s, %d(sp)\n", int_avail_regs[param_node->place].name, offset);
+        }
+        else {
+            if (param_node->dataType == INT_TYPE)
+                fprintf(output, "sw %s, %d(sp)\n", int_avail_regs[param_node->place].name, offset);
+            else
+                fprintf(output, "fsw %s, %d(sp)\n", float_avail_regs[param_node->place].name, offset);
+        }
+        offset += 8;
+        param_node = param_node->rightSibling;
+    }
 }
 
 void genBlock(AST_NODE* block_node, int *AR_offset) {
@@ -348,10 +372,19 @@ void genAssignmentStmt(AST_NODE* assignment_node) {
     int offset_reg = getIntRegister();
     if (left_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR) {
         AST_NODE* dim = left->child;
-        fprintf(output, "addi %s, x0, 4\n", int_avail_regs[offset_reg].name);
+        int* size_of_dimension = left_entry->attribute->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension;
+        int next_index = 1;
+        int max_index = left_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension;
+        fprintf(output, "addi %s, x0, 0\n", int_avail_regs[offset_reg].name);
         while (dim) {
             genExprRelated(dim);
-            fprintf(output, "mul %s, %s, %s\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[dim->place].name);
+            fprintf(output, "add %s, %s, %s\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[dim->place].name);
+            if (next_index < max_index) {
+                fprintf(output, "li %s, %d\n", int_avail_regs[dim->place].name, size_of_dimension[next_index++]);
+                fprintf(output, "mul %s, %s, %s\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[dim->place].name);
+            }
+            else
+                fprintf(output, "slli %s, %s, 2\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name);
             freeIntRegister(dim->place);
             dim = dim->rightSibling;
         }
@@ -412,8 +445,11 @@ void genAssignmentStmt(AST_NODE* assignment_node) {
         int tmp_offset_reg = getIntRegister();
         fprintf(output, ".data\n_CONSTANT_%d: .word %d\n.text\n", const_count, left_entry->offset);
         fprintf(output, "lw %s, _CONSTANT_%d\n", int_avail_regs[tmp_offset_reg].name, const_count++);
+        fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_offset_reg].name, int_avail_regs[tmp_offset_reg].name);
+        if (left_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR && left_entry->offset > 0) {
+            fprintf(output, "ld %s, 0(%s)\n", int_avail_regs[tmp_offset_reg].name, int_avail_regs[tmp_offset_reg].name);
+        }
         fprintf(output, "add %s, %s, %s\n", int_avail_regs[tmp_address_reg].name, int_avail_regs[tmp_offset_reg].name, int_avail_regs[offset_reg].name);
-        fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_address_reg].name, int_avail_regs[tmp_address_reg].name);
         if(left->dataType == INT_TYPE){
             if(right->dataType == FLOAT_TYPE){
                 int tmp_int_reg = getIntRegister();
@@ -498,20 +534,7 @@ void genFunctionCall(AST_NODE* function_node) {
         return;
     }
     //param passing
-    int int_i = 0, float_i = 0;
-    for (AST_NODE* actual_param = name_node->rightSibling->child; actual_param != NULL; actual_param = actual_param->rightSibling) {
-        genExprRelated(actual_param);
-        int reg_num = actual_param->place;
-        // I assume that cross type parameters (int, float, float) are arrange as a0, fa1, fa2
-        if (actual_param->dataType == INT_TYPE) {
-            fprintf(output, "mv a%d, %s\n", int_i++, int_avail_regs[reg_num].name);
-            freeIntRegister(actual_param->place);
-        }
-        else if (actual_param->dataType == FLOAT_TYPE) {
-            fprintf(output, "fmv.s fa%d, %s\n", float_i++, float_avail_regs[reg_num].name);
-            freeFloatRegister(actual_param->place);
-        }
-    }
+    genParameterPassing(id_entry->attribute->attr.functionSignature, name_node->rightSibling->child);
     int tmp_addr_reg = getIntRegister();
     fprintf(output, "la %s, _start_%s\n", int_avail_regs[tmp_addr_reg].name, id_entry->name);
     fprintf(output, "jalr ra, 0(%s)\n", int_avail_regs[tmp_addr_reg].name);
@@ -524,6 +547,7 @@ void genFunctionCall(AST_NODE* function_node) {
         function_node->place = getFloatRegister();
         fprintf(output, "fmv.s %s, fa0\n", float_avail_regs[function_node->place].name);
     }
+    fprintf(output, "addi sp, sp, %d\n", (id_entry->attribute->attr.functionSignature->parametersCount) * 8);
 }
 
 void genReturnStmt(AST_NODE* return_node) {
@@ -553,12 +577,35 @@ void genVariableRHS(AST_NODE* idNode){
     int offset_reg = getIntRegister();
     if (id_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR) {
         AST_NODE* dim = idNode->child;
-        fprintf(output, "addi %s, x0, 4\n", int_avail_regs[offset_reg].name);
+        int* size_of_dimension = id_entry->attribute->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension;
+        int next_index = 1, used_index = 0;
+        int max_index = id_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension;
+        fprintf(output, "addi %s, x0, 0\n", int_avail_regs[offset_reg].name);
         while (dim) {
             genExprRelated(dim);
-            fprintf(output, "mul %s, %s, %s\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[dim->place].name);
+            fprintf(output, "add %s, %s, %s\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[dim->place].name);
+            if (next_index < max_index) { // offset = (i1*n2 + i2)*n3 ...
+                fprintf(output, "li %s, %d\n", int_avail_regs[dim->place].name, size_of_dimension[next_index++]);
+                fprintf(output, "mul %s, %s, %s\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[dim->place].name);
+            }
             freeIntRegister(dim->place);
+            used_index++;
             dim = dim->rightSibling;
+        }
+        fprintf(output, "slli %s, %s, 2\n", int_avail_regs[offset_reg].name, int_avail_regs[offset_reg].name);
+        if (used_index < max_index) { //return a pointer address
+            idNode->place = getIntRegister();
+            if (id_entry->nestingLevel == 0) {
+                fprintf(output, "la %s, _GLOBAL_%s\n", int_avail_regs[idNode->place].name, id_entry->name);
+            }
+            else {
+                fprintf(output, ".data\n_CONSTANT_%d: .word %d\n.text\n", const_count, id_entry->offset);
+                fprintf(output, "lw %s, _CONSTANT_%d\n", int_avail_regs[idNode->place].name, const_count++);
+            }
+            fprintf(output, "add %s, %s, fp\n", int_avail_regs[idNode->place].name, int_avail_regs[idNode->place].name);
+            fprintf(output, "add %s, %s, %s\n", int_avail_regs[idNode->place].name, int_avail_regs[idNode->place].name, int_avail_regs[offset_reg].name);
+            freeIntRegister(offset_reg);
+            return;
         }
     }
     if(id_entry->nestingLevel == 0){
@@ -590,10 +637,12 @@ void genVariableRHS(AST_NODE* idNode){
             int tmp_reg = getIntRegister();
             fprintf(output, ".data\n_CONSTANT_%d: .word %d\n.text\n", const_count, id_entry->offset);
             fprintf(output, "lw %s, _CONSTANT_%d\n", int_avail_regs[tmp_reg].name, const_count++);
+            fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
             if (id_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR) {
+                if (id_entry->offset > 0)
+                    fprintf(output, "ld %s, 0(%s)\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
                 fprintf(output, "add %s, %s, %s\n", int_avail_regs[tmp_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[tmp_reg].name);
             }
-            fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
             fprintf(output, "lw %s, 0(%s)\n", int_avail_regs[idNode->place].name, int_avail_regs[tmp_reg].name);
             freeIntRegister(tmp_reg);
         }
@@ -602,10 +651,12 @@ void genVariableRHS(AST_NODE* idNode){
             int tmp_reg = getIntRegister();
             fprintf(output, ".data\n_CONSTANT_%d: .word %d\n.text\n", const_count, id_entry->offset);
             fprintf(output, "lw %s, _CONSTANT_%d\n", int_avail_regs[tmp_reg].name, const_count++);
+            fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
             if (id_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR) {
+                if (id_entry->offset > 0)
+                    fprintf(output, "ld %s, 0(%s)\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
                 fprintf(output, "add %s, %s, %s\n", int_avail_regs[tmp_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[tmp_reg].name);
             }
-            fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
             fprintf(output, "flw %s, 0(%s)\n", float_avail_regs[idNode->place].name, int_avail_regs[tmp_reg].name);
             freeIntRegister(tmp_reg);
         }
@@ -741,12 +792,16 @@ void genValuateBinaryExprValue(AST_NODE* exprNode){
         int tmp_reg;
         exprNode->place = getFloatRegister();
         if(left->dataType == INT_TYPE){
-            freeIntRegister(left->place);
+            int ori_reg = left->place;
             left->place = getFloatRegister();
+            fprintf(output, "fcvt.s.w %s, %s\n", float_avail_regs[left->place].name, int_avail_regs[ori_reg].name);
+            freeIntRegister(ori_reg);
         }
         if(right->dataType == INT_TYPE){
-            freeIntRegister(right->place);
-            left->place = getFloatRegister();
+            int ori_reg = right->place;
+            right->place = getFloatRegister();
+            fprintf(output, "fcvt.s.w %s, %s\n", float_avail_regs[right->place].name, int_avail_regs[ori_reg].name);
+            freeIntRegister(ori_reg);
         }
         switch (exprNode->semantic_value.exprSemanticValue.op.binaryOp)
         {

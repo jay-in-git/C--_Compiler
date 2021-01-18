@@ -5,8 +5,8 @@
 #include "symbolTable.h"
 #include "header.h"
 #include "codeGenerate.h"
-#define PROLOGUE "sd ra,0(sp)\nsd fp,-8(sp)\nadd fp,sp,-8\nadd sp,sp,-16\nla ra,_frameSize_%s\nlw ra,0(ra)\nsub sp,sp,ra\nsd t0,8(sp)\nsd t1,16(sp)\nsd t2,24(sp)\nsd t3,32(sp)\nsd t4,40(sp)\nsd t5,48(sp)\nsd t6,56(sp)\nsd s2,64(sp)\nsd s3,72(sp)\nsd s4,80(sp)\nsd s5,88(sp)\nsd s6,96(sp)\nsd s7,104(sp)\nsd s8,112(sp)\nsd s9,120(sp)\nsd s10,128(sp)\nsd s11,136(sp)\nsd fp,144(sp)\nfsw ft0,152(sp)\nfsw ft1,156(sp)\nfsw ft2,160(sp)\nfsw ft3,164(sp)\nfsw ft4,168(sp)\nfsw ft5,172(sp)\nfsw ft6,176(sp)\nfsw ft7,180(sp)\nfsw fs1,184(sp)\nfsw fs2,188(sp)\nfsw fs3,192(sp)\nfsw fs4,196(sp)\nfsw fs5,200(sp)\nfsw fs6,204(sp)\nfsw fs7,208(sp)\n"
-#define EPILOGUE "_end_%s:\nld t0,8(sp)\nld t1,16(sp)\nld t2,24(sp)\nld t3,32(sp)\nld t4,40(sp)\nld t5,48(sp)\nld t6,56(sp)\nld s2,64(sp)\nld s3,72(sp)\nld s4,80(sp)\nld s5,88(sp)\nld s6,96(sp)\nld s7,104(sp)\nld s8,112(sp)\nld s9,120(sp)\nld s10,128(sp)\nld s11,136(sp)\nld fp,144(sp)\nflw ft0,152(sp)\nflw ft1,156(sp)\nflw ft2,160(sp)\nflw ft3,164(sp)\nflw ft4,168(sp)\nflw ft5,172(sp)\nflw ft6,176(sp)\nflw ft7,180(sp)\nflw fs1,184(sp)\nflw fs2,188(sp)\nflw fs3,192(sp)\nflw fs4,196(sp)\nflw fs5,200(sp)\nflw fs6,204(sp)\nflw fs7,208(sp)\nld ra,8(fp)\nmv sp,fp\nadd sp,sp,8\nld fp,0(fp)\njr ra\n"
+#define PROLOGUE "sd ra,0(sp)\nsd fp,-8(sp)\naddi fp,sp,-8\naddi sp,sp,-16\nla ra,_frameSize_%s\nlw ra,0(ra)\nsub sp,sp,ra\nsd t0,8(sp)\nsd t1,16(sp)\nsd t2,24(sp)\nsd t3,32(sp)\nsd t4,40(sp)\nsd t5,48(sp)\nsd t6,56(sp)\nsd s2,64(sp)\nsd s3,72(sp)\nsd s4,80(sp)\nsd s5,88(sp)\nsd s6,96(sp)\nsd s7,104(sp)\nsd s8,112(sp)\nsd s9,120(sp)\nsd s10,128(sp)\nsd s11,136(sp)\nsd fp,144(sp)\nfsw ft0,152(sp)\nfsw ft1,156(sp)\nfsw ft2,160(sp)\nfsw ft3,164(sp)\nfsw ft4,168(sp)\nfsw ft5,172(sp)\nfsw ft6,176(sp)\nfsw ft7,180(sp)\nfsw fs1,184(sp)\nfsw fs2,188(sp)\nfsw fs3,192(sp)\nfsw fs4,196(sp)\nfsw fs5,200(sp)\nfsw fs6,204(sp)\nfsw fs7,208(sp)\n"
+#define EPILOGUE "_end_%s:\nld t0,8(sp)\nld t1,16(sp)\nld t2,24(sp)\nld t3,32(sp)\nld t4,40(sp)\nld t5,48(sp)\nld t6,56(sp)\nld s2,64(sp)\nld s3,72(sp)\nld s4,80(sp)\nld s5,88(sp)\nld s6,96(sp)\nld s7,104(sp)\nld s8,112(sp)\nld s9,120(sp)\nld s10,128(sp)\nld s11,136(sp)\nld fp,144(sp)\nflw ft0,152(sp)\nflw ft1,156(sp)\nflw ft2,160(sp)\nflw ft3,164(sp)\nflw ft4,168(sp)\nflw ft5,172(sp)\nflw ft6,176(sp)\nflw ft7,180(sp)\nflw fs1,184(sp)\nflw fs2,188(sp)\nflw fs3,192(sp)\nflw fs4,196(sp)\nflw fs5,200(sp)\nflw fs6,204(sp)\nflw fs7,208(sp)\nld ra,8(fp)\nmv sp,fp\naddi sp,sp,8\nld fp,0(fp)\njr ra\n"
 
 
 FILE* output;
@@ -547,6 +547,7 @@ void genFunctionCall(AST_NODE* function_node) {
         function_node->place = getFloatRegister();
         fprintf(output, "fmv.s %s, fa0\n", float_avail_regs[function_node->place].name);
     }
+    fprintf(output, "addi sp, sp, %d\n", (id_entry->attribute->attr.functionSignature->parametersCount) * 8);
 }
 
 void genReturnStmt(AST_NODE* return_node) {

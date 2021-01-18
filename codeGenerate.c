@@ -142,18 +142,42 @@ void genGlobalDecl(AST_NODE* decl_node) {
 void genFunctionDecl(AST_NODE* decl_node) {
     AST_NODE* type_node = decl_node->child;
     AST_NODE* name_node = type_node->rightSibling;
+    AST_NODE* param = name_node->rightSibling->child;
     SymbolTableEntry* id_entry = name_node->semantic_value.identifierSemanticValue.symbolTableEntry;
     char* id_name = id_entry->name;
     int AR_offset = 0;
     genHead(id_name);
     genPrologue(id_name);
-    genParameter(name_node->rightSibling);
+    // parameters offset
+    int param_offset = 16;
+    while (param) {
+        SymbolTableEntry* param_entry = (param->child->rightSibling)->semantic_value.identifierSemanticValue.symbolTableEntry;
+        param_entry->offset = param_offset;
+        param_offset += 8;
+        param = param->rightSibling;
+    }
     genBlock(name_node->rightSibling->rightSibling, &AR_offset);
     genEpilogue(id_name, AR_offset);
 }
 
-void genParameter(AST_NODE* para_decl) {
-    
+void genParameterPassing(FunctionSignature* function_sig, AST_NODE* param_node) {
+    int offset = 8;
+    Parameter* formal_param = function_sig->parameterList;
+    fprintf(output, "addi sp, sp, -%d\n", (function_sig->parametersCount) * 8);
+    while (param_node) {
+        genExprRelated(param_node);
+        if (param_node->dataType == INT_PTR_TYPE || param_node->dataType == FLOAT_PTR_TYPE) {
+            fprintf(output, "sd %s, %d(sp)\n", int_avail_regs[param_node->place].name, offset);
+        }
+        else {
+            if (param_node->dataType == INT_TYPE)
+                fprintf(output, "sw %s, %d(sp)\n", int_avail_regs[param_node->place].name, offset);
+            else
+                fprintf(output, "fsw %s, %d(sp)\n", float_avail_regs[param_node->place].name, offset);
+        }
+        offset += 8;
+        param_node = param_node->rightSibling;
+    }
 }
 
 void genBlock(AST_NODE* block_node, int *AR_offset) {
@@ -421,8 +445,11 @@ void genAssignmentStmt(AST_NODE* assignment_node) {
         int tmp_offset_reg = getIntRegister();
         fprintf(output, ".data\n_CONSTANT_%d: .word %d\n.text\n", const_count, left_entry->offset);
         fprintf(output, "lw %s, _CONSTANT_%d\n", int_avail_regs[tmp_offset_reg].name, const_count++);
+        fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_offset_reg].name, int_avail_regs[tmp_offset_reg].name);
+        if (left_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR && left_entry->offset > 0) {
+            fprintf(output, "ld %s, 0(%s)\n", int_avail_regs[tmp_offset_reg].name, int_avail_regs[tmp_offset_reg].name);
+        }
         fprintf(output, "add %s, %s, %s\n", int_avail_regs[tmp_address_reg].name, int_avail_regs[tmp_offset_reg].name, int_avail_regs[offset_reg].name);
-        fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_address_reg].name, int_avail_regs[tmp_address_reg].name);
         if(left->dataType == INT_TYPE){
             if(right->dataType == FLOAT_TYPE){
                 int tmp_int_reg = getIntRegister();
@@ -507,19 +534,7 @@ void genFunctionCall(AST_NODE* function_node) {
         return;
     }
     //param passing
-    int int_i = 0, float_i = 0;
-    for (AST_NODE* actual_param = name_node->rightSibling->child; actual_param != NULL; actual_param = actual_param->rightSibling) {
-        genExprRelated(actual_param);
-        int reg_num = actual_param->place;
-        if (actual_param->dataType == INT_TYPE) {
-            fprintf(output, "mv a%d, %s\n", int_i++, int_avail_regs[reg_num].name);
-            freeIntRegister(actual_param->place);
-        }
-        else if (actual_param->dataType == FLOAT_TYPE) {
-            fprintf(output, "fmv.s fa%d, %s\n", float_i++, float_avail_regs[reg_num].name);
-            freeFloatRegister(actual_param->place);
-        }
-    }
+    genParameterPassing(id_entry->attribute->attr.functionSignature, name_node->rightSibling->child);
     int tmp_addr_reg = getIntRegister();
     fprintf(output, "la %s, _start_%s\n", int_avail_regs[tmp_addr_reg].name, id_entry->name);
     fprintf(output, "jalr ra, 0(%s)\n", int_avail_regs[tmp_addr_reg].name);
@@ -619,10 +634,12 @@ void genVariableRHS(AST_NODE* idNode){
             int tmp_reg = getIntRegister();
             fprintf(output, ".data\n_CONSTANT_%d: .word %d\n.text\n", const_count, id_entry->offset);
             fprintf(output, "lw %s, _CONSTANT_%d\n", int_avail_regs[tmp_reg].name, const_count++);
+            fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
             if (id_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR) {
+                if (id_entry->offset > 0)
+                    fprintf(output, "ld %s, 0(%s)\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
                 fprintf(output, "add %s, %s, %s\n", int_avail_regs[tmp_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[tmp_reg].name);
             }
-            fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
             fprintf(output, "lw %s, 0(%s)\n", int_avail_regs[idNode->place].name, int_avail_regs[tmp_reg].name);
             freeIntRegister(tmp_reg);
         }
@@ -631,10 +648,12 @@ void genVariableRHS(AST_NODE* idNode){
             int tmp_reg = getIntRegister();
             fprintf(output, ".data\n_CONSTANT_%d: .word %d\n.text\n", const_count, id_entry->offset);
             fprintf(output, "lw %s, _CONSTANT_%d\n", int_avail_regs[tmp_reg].name, const_count++);
+            fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
             if (id_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR) {
+                if (id_entry->offset > 0)
+                    fprintf(output, "ld %s, 0(%s)\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
                 fprintf(output, "add %s, %s, %s\n", int_avail_regs[tmp_reg].name, int_avail_regs[offset_reg].name, int_avail_regs[tmp_reg].name);
             }
-            fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
             fprintf(output, "flw %s, 0(%s)\n", float_avail_regs[idNode->place].name, int_avail_regs[tmp_reg].name);
             freeIntRegister(tmp_reg);
         }

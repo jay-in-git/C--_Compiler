@@ -58,7 +58,7 @@ void freeFloatRegister(int place);
 void genProgram(AST_NODE* programNode);
 void genGlobalDecl(AST_NODE* decl_node);
 void genFunction(AST_NODE* decl_node);
-void genParameter(AST_NODE* para_list);
+void genParameterPassing(FunctionSignature* function_sig, AST_NODE* param_node);
 void genBlock(AST_NODE* block_node, int *AR_offset);
 void genStmt(AST_NODE* stmt_node, int *AR_offset);
 void genFunctionDecl(AST_NODE* decl_node);

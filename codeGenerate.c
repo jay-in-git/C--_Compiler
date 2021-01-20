@@ -382,7 +382,19 @@ void genWhileStmt(AST_NODE* whileNode, int* AR_offset) {
 }
 
 void genForStmt(AST_NODE* for_node, int* AR_offset) {
-
+    AST_NODE* initExpr = for_node->child;
+    AST_NODE* boolExpr = initExpr->rightSibling;
+    AST_NODE* incrementExpr = boolExper->rightSibling;
+    int for_tmp = for_count;
+    for_count++;
+    while(initExpr != NULL){
+        genAssignmentStmt(initExpr);
+        initExpr = initExpr->rightSibling;
+    }
+    if(boolExpr != NULL) fprintf(output, "_FOR_TEST_%d\n", for_tmp);
+    while(boolExpr != NULL){
+        
+    }
 }
 
 void genAssignmentStmt(AST_NODE* assignment_node) {

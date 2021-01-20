@@ -45,6 +45,7 @@ int float_reg_next = 0;
 int short_circuit_count = 0;
 int if_count = 0;
 int while_count = 0;
+int for_count = 0;
 
 void codeGenerate(AST_NODE* program_node);
 void genHead(char *name);

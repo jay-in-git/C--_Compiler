@@ -382,20 +382,46 @@ void genWhileStmt(AST_NODE* whileNode, int* AR_offset) {
 }
 
 void genForStmt(AST_NODE* for_node, int* AR_offset) {
-    AST_NODE* initExpr = for_node->child;
-    AST_NODE* boolExpr = initExpr->rightSibling;
-    AST_NODE* incrementExpr = boolExper->rightSibling;
+    AST_NODE* initExprList = for_node->child;
+    AST_NODE* boolExprList = initExprList->rightSibling;
+    AST_NODE* incrementExprList = boolExprList->rightSibling;
+    AST_NODE* body = incrementExprList->rightSibling;
     int for_tmp = for_count;
     for_count++;
+    AST_NODE* initExpr = initExprList->child;
+    AST_NODE* boolExpr = boolExprList->child;
+    AST_NODE* incrementExpr = incrementExprList->child;
     while(initExpr != NULL){
         genAssignmentStmt(initExpr);
+        if(initExpr->dataType == INT_TYPE)
+            freeIntRegister(initExpr->place);
+        else
+            freeFloatRegister(initExpr->place);
         initExpr = initExpr->rightSibling;
     }
-    if(boolExpr != NULL) fprintf(output, "_FOR_TEST_%d\n", for_tmp);
+    if(boolExpr != NULL) fprintf(output, "_FOR_TEST_%d:\n", for_tmp);
     while(boolExpr != NULL){
-        
+        genAssignOrExpr(boolExpr);
+        fprintf(output, "beqz %s, _FOR_EXIT_%d\n", int_avail_regs[boolExpr->place].name, for_tmp);
+        freeIntRegister(boolExpr->place);
+        boolExpr = boolExpr->rightSibling;
     }
-}
+    fprintf(output, "j _FOR_BODY_%d\n", for_count);
+    fprintf(output, "_FOR_INC_%d:\n", for_tmp);
+    while(incrementExpr != NULL){
+        genAssignOrExpr(incrementExpr);
+        if(incrementExpr->dataType == INT_TYPE)
+            freeIntRegister(incrementExpr->place);
+        else
+            freeFloatRegister(incrementExpr->place);
+        incrementExpr = incrementExpr->rightSibling;
+    }
+    fprintf(output, "j _FOR_TEST_%d\n", for_tmp);
+    fprintf(output, "_FOR_BODY_%d\n", for_tmp);
+    genStmt(body, AR_offset);
+    fprintf(output, "j _FOR_INC_%d\n", for_tmp);
+    fprintf(output, "_FOR_EXIT_%d:\n", for_tmp);
+}  
 
 void genAssignmentStmt(AST_NODE* assignment_node) {
     AST_NODE* left = assignment_node->child;

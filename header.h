@@ -1,7 +1,7 @@
 #ifndef __HEADER_H__
 #define __HEADER_H__
 
-#define MAX_ARRAY_DIMENSION 10
+#define MAX_ARRAY_DIMENSION 256
 
 typedef enum DATA_TYPE
 {

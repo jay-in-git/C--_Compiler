@@ -227,13 +227,14 @@ void genLocalVariable(AST_NODE* decl_node, int* AR_offset) {
             AST_NODE* init_node = name_node->child;
             SymbolTableEntry* id_entry = name_node->semantic_value.identifierSemanticValue.symbolTableEntry;
             if (id_entry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) { // int or float
-                // printf("%s scalar\n", id_entry->name);
+                DATA_TYPE id_type = id_entry->attribute->attr.typeDescriptor->properties.dataType;
                 (*AR_offset) -= 4;
                 id_entry->offset = (*AR_offset);
                 if (init_node) {
                     genExprRelated(init_node);
                     int tmp_reg = getIntRegister();
-                    if (init_node->semantic_value.const1->const_type == INTEGERC) {
+                    if (init_node->dataType == INT_TYPE) {
+
                         fprintf(output, ".data\n _CONSTANT_%d: .word %d\n.text\n", const_count, id_entry->offset);
                         fprintf(output, "lw %s, _CONSTANT_%d\n", int_avail_regs[tmp_reg].name, const_count++);
                         fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
@@ -406,8 +407,9 @@ void genForStmt(AST_NODE* for_node, int* AR_offset) {
         freeIntRegister(boolExpr->place);
         boolExpr = boolExpr->rightSibling;
     }
-    fprintf(output, "j _FOR_BODY_%d\n", for_count);
-    fprintf(output, "_FOR_INC_%d:\n", for_tmp);
+    // fprintf(output, "j _FOR_BODY_%d\n", for_tmp);
+    // fprintf(output, "_FOR_INC_%d:\n", for_tmp);
+    genStmt(body, AR_offset);
     while(incrementExpr != NULL){
         genAssignOrExpr(incrementExpr);
         if(incrementExpr->dataType == INT_TYPE)
@@ -417,9 +419,9 @@ void genForStmt(AST_NODE* for_node, int* AR_offset) {
         incrementExpr = incrementExpr->rightSibling;
     }
     fprintf(output, "j _FOR_TEST_%d\n", for_tmp);
-    fprintf(output, "_FOR_BODY_%d\n", for_tmp);
-    genStmt(body, AR_offset);
-    fprintf(output, "j _FOR_INC_%d\n", for_tmp);
+    // fprintf(output, "_FOR_BODY_%d:\n", for_tmp);
+    
+    // fprintf(output, "j _FOR_INC_%d\n", for_tmp);
     fprintf(output, "_FOR_EXIT_%d:\n", for_tmp);
 }  
 

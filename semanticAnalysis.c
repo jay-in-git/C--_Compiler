@@ -375,7 +375,6 @@ void declareParam(AST_NODE* type, SymbolAttribute* attr, Parameter* tail) {
 TypeDescriptor* declareVariable(AST_NODE* type, int isParam, int isGlobal)
 {
     AST_NODE* name = (type->rightSibling);
-    AST_NODE* init = (name->child);
     DATA_TYPE declType = getType(type->semantic_value.identifierSemanticValue.identifierName);
     type->dataType = declType;
     TypeDescriptor* ptrToReturn = NULL;
@@ -390,6 +389,7 @@ TypeDescriptor* declareVariable(AST_NODE* type, int isParam, int isGlobal)
                 printErrorMsg(name, SYMBOL_REDECLARE);
             }
             SymbolAttribute* attr = initAttribute(VARIABLE_ATTRIBUTE);
+            AST_NODE* init = (name->child);
             switch (typeEntry->attribute->attr.typeDescriptor->kind) {
                 case SCALAR_TYPE_DESCRIPTOR:
                     if (declType == VOID_TYPE) {

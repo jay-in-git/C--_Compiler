@@ -170,12 +170,33 @@ void genParameterPassing(FunctionSignature* function_sig, AST_NODE* param_node) 
             fprintf(output, "sd %s, %d(sp)\n", int_avail_regs[param_node->place].name, offset);
         }
         else {
-            if (param_node->dataType == INT_TYPE)
-                fprintf(output, "sw %s, %d(sp)\n", int_avail_regs[param_node->place].name, offset);
-            else
-                fprintf(output, "fsw %s, %d(sp)\n", float_avail_regs[param_node->place].name, offset);
+            if (param_node->dataType == INT_TYPE) {
+                if (formal_param->type->kind == SCALAR_TYPE_DESCRIPTOR && formal_param->type->properties.dataType == FLOAT_TYPE) {
+                    int convert_reg = getFloatRegister();
+                    fprintf(output, "fcvt.s.w %s, %s\n", float_avail_regs[convert_reg].name, int_avail_regs[param_node->place].name);
+                    fprintf(output, "fsw %s, %d(sp)\n", float_avail_regs[convert_reg].name, offset);
+                    freeFloatRegister(convert_reg);
+                }
+                else {
+                    fprintf(output, "sw %s, %d(sp)\n", int_avail_regs[param_node->place].name, offset);
+                }
+                freeIntRegister(param_node->place);
+            }
+            else {
+                if (formal_param->type->kind == SCALAR_TYPE_DESCRIPTOR && formal_param->type->properties.dataType == INT_TYPE) {
+                    int convert_reg = getIntRegister();
+                    fprintf(output, "fcvt.w.s %s, %s\n", int_avail_regs[convert_reg].name, float_avail_regs[param_node->place].name);
+                    fprintf(output, "sw %s, %d(sp)\n", int_avail_regs[convert_reg].name, offset);
+                    freeFloatRegister(convert_reg);
+                }
+                else {
+                    fprintf(output, "fsw %s, %d(sp)\n", float_avail_regs[param_node->place].name, offset);
+                }
+                freeFloatRegister(param_node->place);
+            }
         }
         offset += 8;
+        formal_param = formal_param->next;
         param_node = param_node->rightSibling;
     }
 }
@@ -206,13 +227,14 @@ void genLocalVariable(AST_NODE* decl_node, int* AR_offset) {
             AST_NODE* init_node = name_node->child;
             SymbolTableEntry* id_entry = name_node->semantic_value.identifierSemanticValue.symbolTableEntry;
             if (id_entry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) { // int or float
-                // printf("%s scalar\n", id_entry->name);
+                DATA_TYPE id_type = id_entry->attribute->attr.typeDescriptor->properties.dataType;
                 (*AR_offset) -= 4;
                 id_entry->offset = (*AR_offset);
                 if (init_node) {
                     genExprRelated(init_node);
                     int tmp_reg = getIntRegister();
-                    if (init_node->semantic_value.const1->const_type == INTEGERC) {
+                    if (init_node->dataType == INT_TYPE) {
+
                         fprintf(output, ".data\n _CONSTANT_%d: .word %d\n.text\n", const_count, id_entry->offset);
                         fprintf(output, "lw %s, _CONSTANT_%d\n", int_avail_regs[tmp_reg].name, const_count++);
                         fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
@@ -361,8 +383,47 @@ void genWhileStmt(AST_NODE* whileNode, int* AR_offset) {
 }
 
 void genForStmt(AST_NODE* for_node, int* AR_offset) {
-
-}
+    AST_NODE* initExprList = for_node->child;
+    AST_NODE* boolExprList = initExprList->rightSibling;
+    AST_NODE* incrementExprList = boolExprList->rightSibling;
+    AST_NODE* body = incrementExprList->rightSibling;
+    int for_tmp = for_count;
+    for_count++;
+    AST_NODE* initExpr = initExprList->child;
+    AST_NODE* boolExpr = boolExprList->child;
+    AST_NODE* incrementExpr = incrementExprList->child;
+    while(initExpr != NULL){
+        genAssignmentStmt(initExpr);
+        if(initExpr->dataType == INT_TYPE)
+            freeIntRegister(initExpr->place);
+        else
+            freeFloatRegister(initExpr->place);
+        initExpr = initExpr->rightSibling;
+    }
+    if(boolExpr != NULL) fprintf(output, "_FOR_TEST_%d:\n", for_tmp);
+    while(boolExpr != NULL){
+        genAssignOrExpr(boolExpr);
+        fprintf(output, "beqz %s, _FOR_EXIT_%d\n", int_avail_regs[boolExpr->place].name, for_tmp);
+        freeIntRegister(boolExpr->place);
+        boolExpr = boolExpr->rightSibling;
+    }
+    // fprintf(output, "j _FOR_BODY_%d\n", for_tmp);
+    // fprintf(output, "_FOR_INC_%d:\n", for_tmp);
+    genStmt(body, AR_offset);
+    while(incrementExpr != NULL){
+        genAssignOrExpr(incrementExpr);
+        if(incrementExpr->dataType == INT_TYPE)
+            freeIntRegister(incrementExpr->place);
+        else
+            freeFloatRegister(incrementExpr->place);
+        incrementExpr = incrementExpr->rightSibling;
+    }
+    fprintf(output, "j _FOR_TEST_%d\n", for_tmp);
+    // fprintf(output, "_FOR_BODY_%d:\n", for_tmp);
+    
+    // fprintf(output, "j _FOR_INC_%d\n", for_tmp);
+    fprintf(output, "_FOR_EXIT_%d:\n", for_tmp);
+}  
 
 void genAssignmentStmt(AST_NODE* assignment_node) {
     AST_NODE* left = assignment_node->child;

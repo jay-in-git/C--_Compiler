@@ -108,14 +108,20 @@ void genGlobalDecl(AST_NODE* decl_node) {
                     // only support constant
                     switch (init_node->semantic_value.const1->const_type) {
                         case INTEGERC:
-                            fprintf(output, "_GLOBAL_%s: .word %d\n"
-                                , id_entry->name
-                                , init_node->semantic_value.const1->const_u.intval);
+                            if (name_node->dataType == FLOAT_TYPE) {
+                                fprintf(output, "_GLOBAL_%s: .float %.38lf\n", id_entry->name, (float) (init_node->semantic_value.const1->const_u.intval));
+                            }
+                            else {
+                                fprintf(output, "_GLOBAL_%s: .word %d\n", id_entry->name, init_node->semantic_value.const1->const_u.intval);
+                            }
                             break;
                         case FLOATC:
-                            fprintf(output, "_GLOBAL_%s: .float %.38lf\n"
-                                , id_entry->name
-                                , init_node->semantic_value.const1->const_u.fval);
+                            if (name_node->dataType == INT_TYPE) {
+                                fprintf(output, "_GLOBAL_%s: .word %d\n", id_entry->name, (int) (init_node->semantic_value.const1->const_u.fval));
+                            }
+                            else {
+                                fprintf(output, "_GLOBAL_%s: .float %.38lf\n", id_entry->name, init_node->semantic_value.const1->const_u.fval);
+                            }
                             break;
                         default:
                             break;
@@ -234,18 +240,31 @@ void genLocalVariable(AST_NODE* decl_node, int* AR_offset) {
                     genExprRelated(init_node);
                     int tmp_reg = getIntRegister();
                     if (init_node->dataType == INT_TYPE) {
-
                         fprintf(output, ".data\n _CONSTANT_%d: .word %d\n.text\n", const_count, id_entry->offset);
                         fprintf(output, "lw %s, _CONSTANT_%d\n", int_avail_regs[tmp_reg].name, const_count++);
                         fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
-                        fprintf(output, "sw %s, 0(%s)\n", int_avail_regs[init_node->place].name, int_avail_regs[tmp_reg].name);
+                        if (id_type == FLOAT_TYPE) {
+                            int convert_reg = getFloatRegister();
+                            fprintf(output, "fcvt.s.w %s, %s\n", float_avail_regs[convert_reg].name, int_avail_regs[init_node->place].name);
+                            fprintf(output, "fsw %s, 0(%s)\n", float_avail_regs[convert_reg].name, int_avail_regs[tmp_reg].name);
+                            freeFloatRegister(convert_reg);
+                        }
+                        else
+                            fprintf(output, "sw %s, 0(%s)\n", int_avail_regs[init_node->place].name, int_avail_regs[tmp_reg].name);
                         freeIntRegister(init_node->place);
                     }
                     else { //float
                         fprintf(output, ".data\n _CONSTANT_%d: .word %d\n.text\n", const_count, id_entry->offset);
                         fprintf(output, "lw %s, _CONSTANT_%d\n", int_avail_regs[tmp_reg].name, const_count++);
                         fprintf(output, "add %s, %s, fp\n", int_avail_regs[tmp_reg].name, int_avail_regs[tmp_reg].name);
-                        fprintf(output, "fsw %s, 0(%s)\n", float_avail_regs[init_node->place].name, int_avail_regs[tmp_reg].name);
+                        if (id_type == INT_TYPE) {
+                            int convert_reg = getIntRegister();
+                            fprintf(output, "fcvt.w.s %s, %s\n", int_avail_regs[convert_reg].name, float_avail_regs[init_node->place].name);
+                            fprintf(output, "sw %s, 0(%s)\n", int_avail_regs[convert_reg].name, int_avail_regs[tmp_reg].name);
+                            freeIntRegister(convert_reg);
+                        }
+                        else
+                            fprintf(output, "fsw %s, 0(%s)\n", float_avail_regs[init_node->place].name, int_avail_regs[tmp_reg].name);
                         freeFloatRegister(init_node->place);
                     }
                     freeIntRegister(tmp_reg);
